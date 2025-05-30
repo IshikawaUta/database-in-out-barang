@@ -7,4 +7,5 @@ Jinja2==3.1.6
 MarkupSafe==3.0.2
 pymongo==4.13.0
 python-dotenv==1.1.0
+serverless-wsgi==3.0.5
 Werkzeug==3.1.3
