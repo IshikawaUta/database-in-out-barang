@@ -14,10 +14,10 @@
     }
   ],
   "env": {
-    "MONGO_URI": "@inventory_app_mongo_uri",
-    "DATABASE_NAME": "@inventory_app_database_name",
-    "SECRET_KEY": "@inventory_app_secret_key",
-    "ADMIN_USERNAME": "@inventory_app_admin_username",
-    "ADMIN_PASSWORD": "@inventory_app_admin_password"
+    "MONGO_URI": "@MONGO_URI",
+    "DATABASE_NAME": "@DATABASE_NAME",
+    "SECRET_KEY": "@SECRET_KEY",
+    "ADMIN_USERNAME": "@ADMIN_USERNAME",
+    "ADMIN_PASSWORD": "@ADMIN_PASSWORD"
   }
 }
