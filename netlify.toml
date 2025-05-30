@@ -5,3 +5,8 @@
 
 [functions]
   included_files = ["app.py", "templates/**"]
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/handler/:splat"
+  status = 200
