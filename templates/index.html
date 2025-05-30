@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manajemen Inventaris Barang</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Gaya untuk kolom yang berulang di laporan */
+        .report-header-group th {
+            border-bottom: 1px solid #e5e7eb; /* light gray */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 sm:p-8">
+    <div class="max-w-6xl mx-auto bg-white shadow-lg rounded-xl p-6 sm:p-10">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-blue-700 mb-2">Manajemen Inventaris Barang</h1>
+            <p class="text-lg text-gray-600">Catat keluar masuk, edit, hapus, dan lihat stok akhir harian.</p>
+        </header>
+
+        <div class="mb-8 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+            <nav class="flex justify-center sm:justify-start space-x-4">
+                <a href="{{ url_for('index') }}" class="px-6 py-3 rounded-lg font-semibold transition-colors duration-200
+                    {% if page == 'home' %} bg-blue-600 text-white shadow-md {% else %} text-blue-600 hover:bg-blue-100 {% endif %}">
+                    Beranda
+                </a>
+                <a href="{{ url_for('report') }}" class="px-6 py-3 rounded-lg font-semibold transition-colors duration-200
+                    {% if page == 'report' %} bg-blue-600 text-white shadow-md {% else %} text-blue-600 hover:bg-blue-100 {% endif %}">
+                    Laporan Stok Harian
+                </a>
+                <a href="{{ url_for('statistics_page') }}" class="px-6 py-3 rounded-lg font-semibold transition-colors duration-200
+                    {% if page == 'statistics' %} bg-blue-600 text-white shadow-md {% else %} text-blue-600 hover:bg-blue-100 {% endif %}">
+                    Statistik
+                </a>
+            </nav>
+            <div class="text-right">
+                {% if logged_in %}
+                    <span class="text-gray-700 font-medium mr-4">Login sebagai: {{ session.username }}</span>
+                    <a href="{{ url_for('logout') }}" class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors duration-200">Login Admin</a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6 space-y-3">
+                    {% for category, message in messages %}
+                        <div class="px-4 py-3 rounded-lg relative
+                            {% if category == 'error' %} bg-red-100 border border-red-400 text-red-700
+                            {% elif category == 'success' %} bg-green-100 border border-green-400 text-green-700
+                            {% elif category == 'info' %} bg-blue-100 border border-blue-400 text-blue-700
+                            {% elif category == 'warning' %} bg-yellow-100 border border-yellow-400 text-yellow-700
+                            {% endif %}" role="alert">
+                            <strong class="font-bold">{{ category.capitalize() }}:</strong>
+                            <span class="block sm:inline">{{ message }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% if error %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline">{{ error }}</span>
+        </div>
+        {% endif %}
+
+        {% if page == 'login' %}
+        <section id="login-section" class="flex justify-center items-center h-full">
+            <div class="bg-gray-50 p-8 rounded-lg shadow-md w-full max-w-sm">
+                <h2 class="text-2xl font-semibold text-gray-800 mb-6 text-center">Login Admin</h2>
+                <form action="{{ url_for('login') }}" method="POST" class="space-y-4">
+                    <div>
+                        <label for="username" class="block text-sm font-medium text-gray-700 mb-1">Username:</label>
+                        <input type="text" id="username" name="username" required
+                            class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password:</label>
+                        <input type="password" id="password" name="password" required
+                            class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
+                        Login
+                    </button>
+                </form>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if page == 'home' %}
+        <section id="home-section">
+            {% if logged_in %}
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                <div class="bg-blue-50 p-6 rounded-lg shadow-sm">
+                    <h2 class="text-2xl font-semibold text-blue-700 mb-4">Tambah Barang Baru</h2>
+                    <form method="POST" class="space-y-4">
+                        <div>
+                            <label for="item_id" class="block text-sm font-medium text-gray-700 mb-1">ID Barang:</label>
+                            <input type="text" id="item_id" name="item_id" required
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="item_name" class="block text-sm font-medium text-gray-700 mb-1">Nama Barang:</label>
+                            <input type="text" id="item_name" name="item_name" required
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="stock_awal" class="block text-sm font-medium text-gray-700 mb-1">Stok Awal:</label>
+                            <input type="number" id="stock_awal" name="stock_awal" value="0" required min="0"
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="item_creation_date" class="block text-sm font-medium text-gray-700 mb-1">Tanggal Penambahan:</label>
+                            <input type="date" id="item_creation_date" name="item_creation_date" required
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                        <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200">
+                            Tambah Barang
+                        </button>
+                    </form>
+                </div>
+
+                <div class="bg-green-50 p-6 rounded-lg shadow-sm">
+                    <h2 class="text-2xl font-semibold text-green-700 mb-4">Tambah Transaksi</h2>
+                    <form action="/add_transaction" method="POST" class="space-y-4">
+                        <div>
+                            <label for="transaction_item_id" class="block text-sm font-medium text-gray-700 mb-1">Pilih Barang:</label>
+                            <select id="transaction_item_id" name="item_id" required
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                                {% for item in items %}
+                                <option value="{{ item._id }}">{{ item.name }} (ID: {{ item._id }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="transaction_date" class="block text-sm font-medium text-gray-700 mb-1">Tanggal Transaksi:</label>
+                            <input type="date" id="transaction_date" name="transaction_date" required
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="transaction_type" class="block text-sm font-medium text-gray-700 mb-1">Jenis Transaksi:</label>
+                            <select id="transaction_type" name="type" required
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                                <option value="masuk">Masuk</option>
+                                <option value="keluar">Keluar</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="transaction_quantity" class="block text-sm font-medium text-gray-700 mb-1">Jumlah:</label>
+                            <input type="number" id="transaction_quantity" name="quantity" value="1" required min="1"
+                                class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm">
+                        </div>
+                        <button type="submit" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors duration-200">
+                            Tambah Transaksi
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
+                <p class="font-bold">Akses Terbatas</p>
+                <p>Silakan login sebagai admin untuk menambah, mengedit, atau menghapus barang dan transaksi.</p>
+            </div>
+            {% endif %}
+
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Daftar Barang Saat Ini</h2>
+            <div class="overflow-x-auto bg-white rounded-lg shadow-sm">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg">ID Barang</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nama Barang</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stok Saat Ini</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal Dibuat</th>
+                            {% if logged_in %}
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg">Aksi</th>
+                            {% endif %}
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% if items %}
+                            {% for item in items %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ item._id }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{{ item.stock }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                    {% if item.creation_date %}
+                                        {{ item.creation_date.strftime('%Y-%m-%d') }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                {% if logged_in %}
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <a href="{{ url_for('edit_item', item_id=item._id) }}" class="text-indigo-600 hover:text-indigo-900 mr-4">Edit</a>
+                                    <a href="{{ url_for('delete_item', item_id=item._id) }}" class="text-red-600 hover:text-red-900" onclick="return confirm('Apakah Anda yakin ingin menghapus barang ini dan semua transaksinya?');">Hapus</a>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="{{ 5 if logged_in else 4 }}" class="px-6 py-4 text-center text-sm text-gray-500">Belum ada barang yang ditambahkan.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if page == 'report' %}
+        <section id="report-section">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Laporan Stok Akhir Harian
+                {% if selected_month and selected_year %}
+                    untuk {{ months[selected_month-1][1] }} {{ selected_year }}
+                {% else %}
+                    (30 Hari Terakhir)
+                {% endif %}
+            </h2>
+
+            <div class="mb-6 flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-4">
+                <form action="{{ url_for('report') }}" method="GET" class="flex items-center space-x-3">
+                    <div>
+                        <label for="month" class="sr-only">Bulan:</label>
+                        <select id="month" name="month"
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            {% for month_num, month_name in months %}
+                            <option value="{{ month_num }}" {% if month_num == selected_month %}selected{% endif %}>{{ month_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="year" class="sr-only">Tahun:</label>
+                        <select id="year" name="year"
+                            class="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                            {% for year_option in years %}
+                            <option value="{{ year_option }}" {% if year_option == selected_year %}selected{% endif %}>{{ year_option }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Lihat Laporan
+                    </button>
+                </form>
+            </div>
+
+            <div class="overflow-x-auto bg-white rounded-lg shadow-sm">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" rowspan="2" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg border-b border-gray-200">Tanggal</th>
+                            {% for item_id, item_name in all_items.items() %}
+                            <th scope="col" colspan="3" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                                {{ item_name }} ({{ item_id }})
+                            </th>
+                            {% endfor %}
+                            {% if not all_items %}
+                            <th scope="col" rowspan="2" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tr-lg border-b border-gray-200">Tidak Ada Barang</th>
+                            {% endif %}
+                        </tr>
+                        <tr class="report-header-group">
+                            {% for item_id in all_items.keys() %}
+                            <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stok Akhir</th>
+                            <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Masuk</th>
+                            <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Keluar</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% if daily_reports %}
+                            {% for date, daily_stock_data_for_date in daily_reports %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ date }}</td>
+                                {% for item_id in all_items.keys() %}
+                                {% set item_data = daily_stock_data_for_date.get(item_id, {'stock_akhir': 0, 'barang_masuk_hari_ini': 0, 'barang_keluar_hari_ini': 0}) %}
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-center">{{ item_data.stock_akhir }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-green-700 font-semibold text-center">{{ item_data.barang_masuk_hari_ini }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-red-700 font-semibold text-center">{{ item_data.barang_keluar_hari_ini }}</td>
+                                {% endfor %}
+                                {% if not all_items %}
+                                <td colspan="2" class="px-6 py-4 text-center text-sm text-gray-500">N/A</td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="{{ all_items|length * 3 + 1 if all_items else 2 }}" class="px-6 py-4 text-center text-sm text-gray-500">Tidak ada data laporan untuk bulan ini.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if page == 'statistics' %}
+        <section id="statistics-section">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Statistik Inventaris</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div class="bg-purple-50 p-6 rounded-lg shadow-sm text-center">
+                    <h3 class="text-xl font-semibold text-purple-700 mb-2">Total Item Unik</h3>
+                    <p id="total-unique-items" class="text-4xl font-bold text-purple-900">-</p>
+                </div>
+                <div class="bg-yellow-50 p-6 rounded-lg shadow-sm text-center">
+                    <h3 class="text-xl font-semibold text-yellow-700 mb-2">Total Stok Saat Ini</h3>
+                    <p id="total-current-stock" class="text-4xl font-bold text-yellow-900">-</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Tren Transaksi Bulanan (12 Bulan Terakhir)</h3>
+                    <canvas id="monthlyTransactionsChart"></canvas>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Top 5 Barang Berdasarkan Stok</h3>
+                    <canvas id="topStockItemsChart"></canvas>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm lg:col-span-2">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Top 5 Barang Berdasarkan Volume Transaksi (12 Bulan Terakhir)</h3>
+                    <canvas id="topTransactionItemsChart"></canvas>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Fungsi untuk mendapatkan tanggal hari ini dalam format YYYY-MM-DD
+        function getTodayDateFormatted() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set tanggal hari ini sebagai nilai default untuk input tanggal
+            const formattedDate = getTodayDateFormatted();
+
+            const itemCreationDateInput = document.getElementById('item_creation_date');
+            if (itemCreationDateInput) {
+                itemCreationDateInput.value = formattedDate;
+            }
+
+            const transactionDateInput = document.getElementById('transaction_date');
+            if (transactionDateInput) {
+                transactionDateInput.value = formattedDate;
+            }
+
+            // Inisialisasi Chart.js jika berada di halaman statistik
+            if (document.getElementById('statistics-section')) {
+                fetch('/api/statistics')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log("Data Statistik Diterima:", data); // Untuk debugging
+
+                        // Update Ringkasan Keseluruhan
+                        document.getElementById('total-unique-items').innerText = data.overall_summary.total_unique_items;
+                        document.getElementById('total-current-stock').innerText = data.overall_summary.total_current_stock;
+
+                        // Grafik Tren Transaksi Bulanan
+                        const monthlyLabels = data.monthly_trends.map(m => m.month_name);
+                        const monthlyMasuk = data.monthly_trends.map(m => m.masuk);
+                        const monthlyKeluar = data.monthly_trends.map(m => m.keluar);
+
+                        new Chart(document.getElementById('monthlyTransactionsChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: monthlyLabels,
+                                datasets: [
+                                    {
+                                        label: 'Barang Masuk',
+                                        data: monthlyMasuk,
+                                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                                        borderColor: 'rgba(75, 192, 192, 1)',
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'Barang Keluar',
+                                        data: monthlyKeluar,
+                                        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                                        borderColor: 'rgba(255, 99, 132, 1)',
+                                        borderWidth: 1
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    title: {
+                                        display: false,
+                                        text: 'Tren Transaksi Bulanan'
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        stacked: false,
+                                        title: {
+                                            display: true,
+                                            text: 'Bulan'
+                                        }
+                                    },
+                                    y: {
+                                        stacked: false,
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Jumlah Barang'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+
+                        // Grafik Top 5 Barang Berdasarkan Stok
+                        const topStockLabels = data.top_stock_items.map(item => item.name);
+                        const topStockData = data.top_stock_items.map(item => item.stock);
+
+                        new Chart(document.getElementById('topStockItemsChart'), {
+                            type: 'pie',
+                            data: {
+                                labels: topStockLabels,
+                                datasets: [{
+                                    data: topStockData,
+                                    backgroundColor: [
+                                        'rgba(255, 205, 86, 0.6)',
+                                        'rgba(54, 162, 235, 0.6)',
+                                        'rgba(255, 99, 132, 0.6)',
+                                        'rgba(75, 192, 192, 0.6)',
+                                        'rgba(153, 102, 255, 0.6)'
+                                    ],
+                                    borderColor: [
+                                        'rgba(255, 205, 86, 1)',
+                                        'rgba(54, 162, 235, 1)',
+                                        'rgba(255, 99, 132, 1)',
+                                        'rgba(75, 192, 192, 1)',
+                                        'rgba(153, 102, 255, 1)'
+                                    ],
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    title: {
+                                        display: false,
+                                        text: 'Top 5 Barang Berdasarkan Stok'
+                                    }
+                                }
+                            }
+                        });
+
+                        // Grafik Top 5 Barang Berdasarkan Volume Transaksi
+                        const topTransactionLabels = data.top_transaction_items.map(item => item.name);
+                        const topTransactionData = data.top_transaction_items.map(item => item.total_volume);
+
+                        new Chart(document.getElementById('topTransactionItemsChart'), {
+                            type: 'bar',
+                            data: {
+                                labels: topTransactionLabels,
+                                datasets: [{
+                                    label: 'Volume Transaksi',
+                                    data: topTransactionData,
+                                    backgroundColor: 'rgba(255, 159, 64, 0.6)',
+                                    borderColor: 'rgba(255, 159, 64, 1)',
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    title: {
+                                        display: false,
+                                        text: 'Top 5 Barang Berdasarkan Volume Transaksi'
+                                    }
+                                },
+                                scales: {
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Nama Barang'
+                                        }
+                                    },
+                                    y: {
+                                        beginAtZero: true,
+                                        title: {
+                                            display: true,
+                                            text: 'Total Volume'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+
+                    })
+                    .catch(error => console.error('Error fetching statistics:', error));
+            }
+        });
+    </script>
+</body>
+</html>
