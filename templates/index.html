@@ -10,9 +10,8 @@
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Gaya untuk kolom yang berulang di laporan */
         .report-header-group th {
-            border-bottom: 1px solid #e5e7eb; /* light gray */
+            border-bottom: 1px solid #e5e7eb;
         }
     </style>
 </head>
@@ -261,7 +260,7 @@
                         <tr>
                             <th scope="col" rowspan="2" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider rounded-tl-lg border-b border-gray-200">Tanggal</th>
                             {% for item_id, item_name in all_items.items() %}
-                            <th scope="col" colspan="3" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
+                            <th scope="col" colspan="4" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                                 {{ item_name }} ({{ item_id }})
                             </th>
                             {% endfor %}
@@ -271,6 +270,7 @@
                         </tr>
                         <tr class="report-header-group">
                             {% for item_id in all_items.keys() %}
+                            <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stok Awal</th>
                             <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Stok Akhir</th>
                             <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Masuk</th>
                             <th scope="col" class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Keluar</th>
@@ -283,7 +283,8 @@
                             <tr>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ date }}</td>
                                 {% for item_id in all_items.keys() %}
-                                {% set item_data = daily_stock_data_for_date.get(item_id, {'stock_akhir': 0, 'barang_masuk_hari_ini': 0, 'barang_keluar_hari_ini': 0}) %}
+                                {% set item_data = daily_stock_data_for_date.get(item_id, {'stock_awal': 0, 'stock_akhir': 0, 'barang_masuk_hari_ini': 0, 'barang_keluar_hari_ini': 0}) %}
+                                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-center">{{ item_data.stock_awal }}</td>
                                 <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-700 text-center">{{ item_data.stock_akhir }}</td>
                                 <td class="px-3 py-2 whitespace-nowrap text-sm text-green-700 font-semibold text-center">{{ item_data.barang_masuk_hari_ini }}</td>
                                 <td class="px-3 py-2 whitespace-nowrap text-sm text-red-700 font-semibold text-center">{{ item_data.barang_keluar_hari_ini }}</td>
@@ -295,7 +296,7 @@
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="{{ all_items|length * 3 + 1 if all_items else 2 }}" class="px-6 py-4 text-center text-sm text-gray-500">Tidak ada data laporan untuk bulan ini.</td>
+                                <td colspan="{{ all_items|length * 4 + 1 if all_items else 2 }}" class="px-6 py-4 text-center text-sm text-gray-500">Tidak ada data laporan untuk bulan ini.</td>
                             </tr>
                         {% endif %}
                     </tbody>
@@ -341,7 +342,6 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Fungsi untuk mendapatkan tanggal hari ini dalam format YYYY-MM-DD
         function getTodayDateFormatted() {
             const today = new Date();
             const year = today.getFullYear();
@@ -351,7 +351,6 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            // Set tanggal hari ini sebagai nilai default untuk input tanggal
             const formattedDate = getTodayDateFormatted();
 
             const itemCreationDateInput = document.getElementById('item_creation_date');
@@ -364,18 +363,15 @@
                 transactionDateInput.value = formattedDate;
             }
 
-            // Inisialisasi Chart.js jika berada di halaman statistik
             if (document.getElementById('statistics-section')) {
                 fetch('/api/statistics')
                     .then(response => response.json())
                     .then(data => {
-                        console.log("Data Statistik Diterima:", data); // Untuk debugging
+                        console.log("Data Statistik Diterima:", data);
 
-                        // Update Ringkasan Keseluruhan
                         document.getElementById('total-unique-items').innerText = data.overall_summary.total_unique_items;
                         document.getElementById('total-current-stock').innerText = data.overall_summary.total_current_stock;
 
-                        // Grafik Tren Transaksi Bulanan
                         const monthlyLabels = data.monthly_trends.map(m => m.month_name);
                         const monthlyMasuk = data.monthly_trends.map(m => m.masuk);
                         const monthlyKeluar = data.monthly_trends.map(m => m.keluar);
@@ -429,7 +425,6 @@
                             }
                         });
 
-                        // Grafik Top 5 Barang Berdasarkan Stok
                         const topStockLabels = data.top_stock_items.map(item => item.name);
                         const topStockData = data.top_stock_items.map(item => item.stock);
 
@@ -467,7 +462,6 @@
                             }
                         });
 
-                        // Grafik Top 5 Barang Berdasarkan Volume Transaksi
                         const topTransactionLabels = data.top_transaction_items.map(item => item.name);
                         const topTransactionData = data.top_transaction_items.map(item => item.total_volume);
 
