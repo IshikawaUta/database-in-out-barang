@@ -2,9 +2,10 @@ import os
 from datetime import datetime, timedelta
 import calendar
 from flask import Flask, render_template, request, redirect, url_for, jsonify, session, flash
-
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import uuid
+from bson.son import SON
 
 load_dotenv()
 
@@ -113,19 +114,17 @@ def index():
         except ValueError:
             flash("Format tanggal penambahan barang tidak valid.", "error")
             items = list(inventory_collection.find().sort("name", 1))
-            return render_template('index.html', items=items, error="Format tanggal penambahan barang tidak valid.", page='home', logged_in=session.get('logged_in'))
-
-        print(f"Menerima permintaan POST untuk menambah barang: ID={item_id}, Nama={item_name}, Stok Awal={stock_awal}, Tanggal Penambahan={item_creation_date.strftime('%Y-%m-%d')}")
+            return render_template('index.html', items=items, error="Format tanggal penambahan barang tidak valid.", page='home', logged_in=session.get('logged_in'), datetime=datetime)
 
         if not item_id or not item_name:
             flash("ID Barang dan Nama Barang tidak boleh kosong.", "error")
             items = list(inventory_collection.find().sort("name", 1))
-            return render_template('index.html', items=items, error="ID Barang dan Nama Barang tidak boleh kosong.", page='home', logged_in=session.get('logged_in'))
+            return render_template('index.html', items=items, error="ID Barang dan Nama Barang tidak boleh kosong.", page='home', logged_in=session.get('logged_in'), datetime=datetime)
 
         if inventory_collection.find_one({"_id": item_id}):
             flash(f"ID Barang '{item_id}' sudah ada. Gunakan ID lain.", "error")
             items = list(inventory_collection.find().sort("name", 1))
-            return render_template('index.html', items=items, error="ID Barang sudah ada. Gunakan ID lain.", page='home', logged_in=session.get('logged_in'))
+            return render_template('index.html', items=items, error="ID Barang sudah ada. Gunakan ID lain.", page='home', logged_in=session.get('logged_in'), datetime=datetime)
 
         try:
             inventory_collection.insert_one({
@@ -136,76 +135,73 @@ def index():
                 "creation_date": item_creation_date
             })
             flash(f"Barang '{item_name}' (ID: {item_id}) berhasil ditambahkan.", "success")
-            print(f"Barang '{item_name}' (ID: {item_id}) berhasil ditambahkan ke database.")
         except Exception as e:
             flash(f"Gagal menambahkan barang: {e}", "error")
-            print(f"Gagal menambahkan barang '{item_name}' (ID: {item_id}) ke database: {e}")
             items = list(inventory_collection.find().sort("name", 1))
-            return render_template('index.html', items=items, error=f"Gagal menambahkan barang: {e}", page='home', logged_in=session.get('logged_in'))
+            return render_template('index.html', items=items, error=f"Gagal menambahkan barang: {e}", page='home', logged_in=session.get('logged_in'), datetime=datetime)
 
         return redirect(url_for('index'))
 
-    print("Menerima permintaan GET untuk halaman utama. Mengambil daftar barang...")
     items = list(inventory_collection.find().sort("name", 1))
-    print(f"Jumlah barang yang diambil dari database: {len(items)}")
-    for item in items:
-        print(f"  - Barang: {item.get('name')}, ID: {item.get('_id')}, Stok: {item.get('stock')}, Tanggal Dibuat: {item.get('creation_date')}")
-
-    return render_template('index.html', items=items, error=None, page='home', logged_in=session.get('logged_in'))
+    return render_template('index.html', items=items, error=None, page='home', logged_in=session.get('logged_in'), datetime=datetime)
 
 @app.route('/add_transaction', methods=['POST'])
 def add_transaction():
     if 'logged_in' not in session or not session['logged_in']:
-        flash("Anda harus login sebagai admin untuk menambah transaksi.", "error")
-        return redirect(url_for('login'))
+        return jsonify({"success": False, "message": "Anda harus login sebagai admin untuk menambah transaksi."}), 403
 
-    item_id = request.form['item_id']
-    transaction_type = request.form['type']
-    quantity = int(request.form['quantity'])
-    
-    transaction_date_str = request.form['transaction_date']
+    data = request.json
+    if not data or 'items' not in data or not data['items']:
+        return jsonify({"success": False, "message": "Data transaksi tidak valid."}), 400
+
+    shipment_id = str(uuid.uuid4())
+    transaction_date_str = data.get('transaction_date')
+    if not transaction_date_str:
+        return jsonify({"success": False, "message": "Tanggal transaksi tidak boleh kosong."}), 400
+
     try:
         transaction_datetime = datetime.strptime(transaction_date_str, '%Y-%m-%d')
     except ValueError:
-        flash("Format tanggal transaksi tidak valid.", "error")
-        print(f"Error: Format tanggal tidak valid: {transaction_date_str}")
-        return redirect(url_for('index', error="Format tanggal transaksi tidak valid."))
+        return jsonify({"success": False, "message": "Format tanggal transaksi tidak valid."}), 400
 
-    print(f"Menerima transaksi: Barang ID={item_id}, Tipe={transaction_type}, Jumlah={quantity}, Tanggal={transaction_datetime.strftime('%Y-%m-%d')}")
+    new_transactions = []
+    
+    for item_data in data['items']:
+        item_id = item_data.get('item_id')
+        transaction_type = item_data.get('type')
+        quantity = int(item_data.get('quantity', 0))
+        description = item_data.get('description', '')
 
-    item = inventory_collection.find_one({"_id": item_id})
-    if not item:
-        flash("Barang tidak ditemukan untuk transaksi.", "error")
-        print(f"Error: Barang dengan ID '{item_id}' tidak ditemukan untuk transaksi.")
-        return redirect(url_for('index', error="Barang tidak ditemukan untuk transaksi."))
-
-    try:
-        transactions_collection.insert_one({
-            "item_id": item_id,
-            "type": transaction_type,
-            "quantity": quantity,
-            "timestamp": transaction_datetime
-        })
-        flash(f"Transaksi berhasil dicatat untuk barang ID: {item_id} pada tanggal {transaction_datetime.strftime('%Y-%m-%d')}.", "success")
-        print(f"Transaksi berhasil dicatat untuk barang ID: {item_id} pada tanggal {transaction_datetime.strftime('%Y-%m-%d')}.")
+        if not all([item_id, transaction_type, quantity]):
+            return jsonify({"success": False, "message": "Semua field item harus diisi."}), 400
+        
+        item = inventory_collection.find_one({"_id": item_id})
+        if not item:
+            return jsonify({"success": False, "message": f"Barang dengan ID '{item_id}' tidak ditemukan."}), 404
 
         current_stock = item['stock']
         if transaction_type == 'masuk':
             new_stock = current_stock + quantity
         elif transaction_type == 'keluar':
             new_stock = current_stock - quantity
-            if new_stock < 0:
-                flash(f"Peringatan: Stok {item['name']} menjadi minus ({new_stock}). Transaksi tetap dicatat.", "warning")
-                print(f"Peringatan: Stok {item['name']} menjadi minus ({new_stock}). Transaksi tetap dicatat.")
-        inventory_collection.update_one({"_id": item_id}, {"$set": {"stock": new_stock}})
-        print(f"Stok barang '{item['name']}' diperbarui menjadi: {new_stock}")
-
-    except Exception as e:
-        flash(f"Gagal mencatat transaksi: {e}", "error")
-        print(f"Gagal mencatat transaksi atau memperbarui stok: {e}")
-        return redirect(url_for('index', error=f"Gagal mencatat transaksi: {e}"))
-
-    return redirect(url_for('index'))
+        else:
+            return jsonify({"success": False, "message": "Tipe transaksi tidak valid."}), 400
+        
+        try:
+            transactions_collection.insert_one({
+                "item_id": item_id,
+                "type": transaction_type,
+                "quantity": quantity,
+                "description": description,
+                "timestamp": transaction_datetime,
+                "shipment_id": shipment_id
+            })
+            inventory_collection.update_one({"_id": item_id}, {"$set": {"stock": new_stock}})
+        except Exception as e:
+            return jsonify({"success": False, "message": f"Gagal mencatat transaksi: {e}"}), 500
+        
+    flash("Transaksi berhasil dicatat.", "success")
+    return jsonify({"success": True, "shipment_id": shipment_id})
 
 @app.route('/edit_item/<item_id>', methods=['GET', 'POST'])
 def edit_item(item_id):
@@ -216,8 +212,7 @@ def edit_item(item_id):
     item = inventory_collection.find_one({"_id": item_id})
     if not item:
         flash("Barang tidak ditemukan.", "error")
-        print(f"Error: Barang dengan ID '{item_id}' tidak ditemukan untuk diedit.")
-        return redirect(url_for('index', error="Barang tidak ditemukan."))
+        return redirect(url_for('index'))
 
     if request.method == 'POST':
         new_name = request.form['item_name'].strip()
@@ -228,15 +223,11 @@ def edit_item(item_id):
             new_creation_date = datetime.strptime(new_creation_date_str, '%Y-%m-%d')
         except ValueError:
             flash("Format tanggal penambahan barang tidak valid saat edit.", "error")
-            print(f"Error: Format tanggal penambahan barang tidak valid saat edit: {new_creation_date_str}")
-            return render_template('edit_item.html', item=item, error="Format tanggal penambahan barang tidak valid.", logged_in=session.get('logged_in'))
-
-        print(f"Menerima permintaan POST untuk edit barang '{item_id}': Nama Baru={new_name}, Stok Baru={new_stock}, Tanggal Dibuat Baru={new_creation_date.strftime('%Y-%m-%d')}")
+            return render_template('edit_item.html', item=item, error="Format tanggal penambahan barang tidak valid.", logged_in=session.get('logged_in'), datetime=datetime)
 
         if not new_name:
             flash("Nama Barang tidak boleh kosong.", "error")
-            print("Error: Nama Barang kosong saat edit.")
-            return render_template('edit_item.html', item=item, error="Nama Barang tidak boleh kosong.", logged_in=session.get('logged_in'))
+            return render_template('edit_item.html', item=item, error="Nama Barang tidak boleh kosong.", logged_in=session.get('logged_in'), datetime=datetime)
 
         try:
             inventory_collection.update_one(
@@ -249,15 +240,13 @@ def edit_item(item_id):
                 }}
             )
             flash(f"Barang '{item_id}' berhasil diperbarui.", "success")
-            print(f"Barang '{item_id}' berhasil diperbarui.")
         except Exception as e:
             flash(f"Gagal memperbarui barang: {e}", "error")
-            print(f"Gagal memperbarui barang '{item_id}': {e}")
-            return render_template('edit_item.html', item=item, error=f"Gagal memperbarui barang: {e}", logged_in=session.get('logged_in'))
+            return render_template('edit_item.html', item=item, error=f"Gagal memperbarui barang: {e}", logged_in=session.get('logged_in'), datetime=datetime)
 
         return redirect(url_for('index'))
 
-    return render_template('edit_item.html', item=item, error=None, logged_in=session.get('logged_in'))
+    return render_template('edit_item.html', item=item, error=None, logged_in=session.get('logged_in'), datetime=datetime)
 
 @app.route('/delete_item/<item_id>')
 def delete_item(item_id):
@@ -268,21 +257,15 @@ def delete_item(item_id):
     item = inventory_collection.find_one({"_id": item_id})
     if not item:
         flash("Barang tidak ditemukan.", "error")
-        print(f"Error: Barang dengan ID '{item_id}' tidak ditemukan untuk dihapus.")
-        return redirect(url_for('index', error="Barang tidak ditemukan."))
-
-    print(f"Menerima permintaan hapus untuk barang ID: {item_id}.")
+        return redirect(url_for('index'))
 
     try:
         transactions_collection.delete_many({"item_id": item_id})
-        print(f"Semua transaksi terkait barang '{item_id}' berhasil dihapus.")
         inventory_collection.delete_one({"_id": item_id})
-        print(f"Barang '{item_id}' berhasil dihapus dari inventory.")
         flash(f"Barang '{item_id}' dan semua transaksinya berhasil dihapus.", "success")
     except Exception as e:
         flash(f"Gagal menghapus barang: {e}", "error")
-        print(f"Gagal menghapus barang '{item_id}' atau transaksinya: {e}")
-        return redirect(url_for('index', error=f"Gagal menghapus barang: {e}"))
+        return redirect(url_for('index'))
 
     return redirect(url_for('index'))
 
@@ -427,6 +410,58 @@ def get_statistics_data():
     stats_data['top_transaction_items'] = top_transaction_items
 
     return jsonify(stats_data)
+
+@app.route('/surat_jalan/<shipment_id>')
+def surat_jalan(shipment_id):
+    if 'logged_in' not in session or not session['logged_in']:
+        flash("Anda harus login sebagai admin untuk melihat surat jalan.", "error")
+        return redirect(url_for('login'))
+
+    transactions = list(transactions_collection.find({"shipment_id": shipment_id}))
+    if not transactions:
+        flash("Surat jalan tidak ditemukan.", "error")
+        return redirect(url_for('index'))
+    
+    shipment_date = transactions[0]['timestamp']
+
+    items_in_shipment = []
+    for tx in transactions:
+        item = inventory_collection.find_one({"_id": tx['item_id']})
+        if item:
+            items_in_shipment.append({
+                'item_id': tx['item_id'],
+                'item_name': item['name'],
+                'quantity': tx['quantity'],
+                'description': tx['description'],
+                'type': tx['type']
+            })
+    
+    return render_template('surat_jalan.html',
+                           shipment_id=shipment_id,
+                           shipment_date=shipment_date,
+                           items_in_shipment=items_in_shipment,
+                           logged_in=session.get('logged_in'))
+
+@app.route('/shipment_history')
+def shipment_history():
+    if 'logged_in' not in session or not session['logged_in']:
+        flash("Anda harus login sebagai admin untuk melihat riwayat surat jalan.", "error")
+        return redirect(url_for('login'))
+
+    pipeline = [
+        {"$match": {"type": "keluar"}},
+        {"$group": {
+            "_id": "$shipment_id",
+            "date": {"$min": "$timestamp"},
+            "item_count": {"$sum": 1}
+        }},
+        {"$sort": {"date": -1}}
+    ]
+    
+    shipments = list(transactions_collection.aggregate(pipeline))
+    
+    return render_template('shipment_history.html', shipments=shipments, page='shipment_history', logged_in=session.get('logged_in'))
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

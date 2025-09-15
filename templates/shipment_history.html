@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riwayat Surat Jalan</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-4 sm:p-8">
+    <div class="max-w-6xl mx-auto bg-white shadow-lg rounded-xl p-6 sm:p-10">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-blue-700 mb-2">Riwayat Surat Jalan</h1>
+            <p class="text-lg text-gray-600">Daftar semua surat jalan yang telah dibuat untuk barang keluar.</p>
+        </header>
+
+        <div class="mb-8 flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
+            <nav class="flex space-x-2 sm:space-x-4 p-1 bg-gray-200 rounded-lg">
+                <a href="{{ url_for('index') }}" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md text-sm font-medium transition-colors {% if page == 'home' %}bg-blue-600 text-white{% else %}text-gray-700 hover:bg-gray-300{% endif %}">Beranda</a>
+                <a href="{{ url_for('report') }}" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md text-sm font-medium transition-colors {% if page == 'report' %}bg-blue-600 text-white{% else %}text-gray-700 hover:bg-gray-300{% endif %}">Laporan Harian</a>
+                <a href="{{ url_for('statistics_page') }}" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md text-sm font-medium transition-colors {% if page == 'statistics' %}bg-blue-600 text-white{% else %}text-gray-700 hover:bg-gray-300{% endif %}">Statistik</a>
+                <a href="{{ url_for('shipment_history') }}" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md text-sm font-medium transition-colors {% if page == 'shipment_history' %}bg-blue-600 text-white{% else %}text-gray-700 hover:bg-gray-300{% endif %}">Riwayat Surat Jalan</a>
+            </nav>
+            <div class="flex items-center space-x-2">
+                {% if logged_in %}
+                <span class="text-sm font-medium text-gray-600">Admin</span>
+                <a href="{{ url_for('logout') }}" class="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none">
+                    Logout
+                </a>
+                {% else %}
+                <a href="{{ url_for('login') }}" class="inline-flex items-center px-3 py-1 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none">
+                    Login Admin
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-6 space-y-3">
+                    {% for category, message in messages %}
+                        <div class="rounded-lg p-4 {% if category == 'success' %}bg-green-100 text-green-800 border-green-200{% elif category == 'error' %}bg-red-100 text-red-800 border-red-200{% elif category == 'warning' %}bg-yellow-100 text-yellow-800 border-yellow-200{% elif category == 'info' %}bg-blue-100 text-blue-800 border-blue-200{% endif %} border-l-4">
+                            <p class="font-medium">{{ message }}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section>
+            {% if logged_in %}
+                {% if shipments %}
+                <div class="overflow-x-auto shadow-sm ring-1 ring-black ring-opacity-5 rounded-lg">
+                    <table class="min-w-full divide-y divide-gray-300">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Nomor Surat Jalan</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Tanggal</th>
+                                <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Jumlah Item</th>
+                                <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6 text-right text-sm font-semibold text-gray-900">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            {% for shipment in shipments %}
+                                <tr>
+                                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">{{ shipment._id }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ shipment.date.strftime('%d %B %Y') }}</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ shipment.item_count }}</td>
+                                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 sm:pr-6 text-right text-sm font-medium">
+                                        <a href="{{ url_for('surat_jalan', shipment_id=shipment._id) }}" class="text-blue-600 hover:text-blue-900">Lihat/Cetak</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-center py-8">Belum ada surat jalan yang dibuat.</p>
+                {% endif %}
+            {% else %}
+            <div class="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4 mb-8" role="alert">
+                <p class="font-bold">Informasi</p>
+                <p>Silakan login sebagai admin untuk melihat riwayat surat jalan.</p>
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</body>
+</html>
